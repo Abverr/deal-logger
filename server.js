@@ -1,21 +1,34 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Раздаём фронтенд
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+// Поддержка JSON и form-urlencoded
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 const logFile = './deal_log.json';
 
+// Маршрут корня — показываем фронтенд
 app.get('/', (req, res) => {
-  res.send('Server is running. Use /get_deal_log for HR.');
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
+// Вебхук Bitrix24
 app.post('/log_deal_event', (req, res) => {
+  // Отладка: выводим все входящие данные
+  console.log("Webhook received:", JSON.stringify(req.body, null, 2));
+
   const data = req.body;
 
-  if (!data || !data.FIELDS || !data.CHANGED_BY) return res.status(400).json({ error: 'Нет данных' });
+  if (!data || !data.FIELDS || !data.CHANGED_BY) {
+    return res.status(400).json({ error: 'Нет данных' });
+  }
 
   const dealId = data.FIELDS.ID;
   const stageFrom = data.FIELDS.STAGE_ID_OLD || null;
@@ -36,9 +49,11 @@ app.post('/log_deal_event', (req, res) => {
   });
 
   fs.writeFileSync(logFile, JSON.stringify(logs, null, 2));
+
   res.json({ status: 'ok' });
 });
 
+// Ручка для HR
 app.get('/get_deal_log', (req, res) => {
   const logs = fs.existsSync(logFile) ? JSON.parse(fs.readFileSync(logFile)) : {};
   res.json(logs);
