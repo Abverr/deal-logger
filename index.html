@@ -21,7 +21,7 @@ async function loadLog() {
   output.textContent = "Загрузка...";
 
   try {
-    const response = await fetch("https://YOUR_SERVER_URL/get_deal_log");
+    const response = await fetch("https://https://deal-logger-production.up.railway.app/get_deal_log");
     const data = await response.json();
     output.textContent = JSON.stringify(data, null, 2);
   } catch (err) {
