@@ -7,22 +7,22 @@ const axios = require("axios");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔧 Парсим любые данные от Bitrix24
+// Парсим JSON и urlencoded от Bitrix24
 app.use(cors());
-app.use(express.json()); // JSON
-app.use(express.urlencoded({ extended: true })); // x-www-form-urlencoded
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
 const logFile = "./deal_log.json";
 
-// 👉 сюда вставь свой входящий вебхук с правами CRM (для crm.deal.get)
-const BITRIX_WEBHOOK = "https://dnk-labtest.bitrix24.ru/rest/1/8oqcsbsm6gzvb0vg/crm.deal.get.json/";
+// Входящий вебхук с правами CRM (только URL без метода)
+const BITRIX_WEBHOOK = "https://dnk-labtest.bitrix24.ru/rest/1/8oqcsbsm6gzvb0vg/";
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// 🚀 Обработчик вебхука от Bitrix24
+// Обработчик вебхука от Bitrix24
 app.post("/log_deal_event", async (req, res) => {
   console.log("Webhook received:", JSON.stringify(req.body, null, 2));
 
@@ -32,7 +32,7 @@ app.post("/log_deal_event", async (req, res) => {
   }
 
   try {
-    // 🔎 Получаем детали сделки через входящий вебхук
+    // Получаем детали сделки через входящий вебхук
     const response = await axios.get(`${BITRIX_WEBHOOK}crm.deal.get`, {
       params: { id: dealId }
     });
@@ -69,7 +69,7 @@ app.post("/log_deal_event", async (req, res) => {
   }
 });
 
-// 🔎 Ручка для получения JSON
+// Ручка для получения JSON
 app.get("/get_deal_log", (req, res) => {
   const logs = fs.existsSync(logFile)
     ? JSON.parse(fs.readFileSync(logFile))
