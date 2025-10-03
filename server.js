@@ -5,8 +5,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Раздаём фронтенд
-app.use(express.static(path.join(__dirname, '../frontend')));
+// Раздаём фронтенд (index.html лежит в той же папке)
+app.use(express.static(__dirname));
 
 // Поддержка JSON и form-urlencoded
 app.use(bodyParser.json());
@@ -16,12 +16,11 @@ const logFile = './deal_log.json';
 
 // Маршрут корня — показываем фронтенд
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Вебхук Bitrix24
 app.post('/log_deal_event', (req, res) => {
-  // Отладка: выводим все входящие данные
   console.log("Webhook received:", JSON.stringify(req.body, null, 2));
 
   const data = req.body;
@@ -49,7 +48,6 @@ app.post('/log_deal_event', (req, res) => {
   });
 
   fs.writeFileSync(logFile, JSON.stringify(logs, null, 2));
-
   res.json({ status: 'ok' });
 });
 
