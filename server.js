@@ -1,59 +1,71 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const fs = require('fs');
-const path = require('path');
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+const axios = require("axios");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Раздаём фронтенд (index.html лежит в той же папке)
+app.use(cors());
+app.use(bodyParser.json());
 app.use(express.static(__dirname));
 
-// Поддержка JSON и form-urlencoded
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+const logFile = "./deal_log.json";
 
-const logFile = './deal_log.json';
+// 👉 ВСТАВЬ сюда свой входящий вебхук с правами CRM
+const BITRIX_WEBHOOK = "https://dnk-labtest.bitrix24.ru/rest/1/8oqcsbsm6gzvb0vg/crm.deal.get.json/";
 
-// Маршрут корня — показываем фронтенд
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// Вебхук Bitrix24
-app.post('/log_deal_event', (req, res) => {
+app.post("/log_deal_event", async (req, res) => {
   console.log("Webhook received:", JSON.stringify(req.body, null, 2));
+  const dealId = req.body?.data?.FIELDS?.ID;
 
-  const data = req.body;
-
-  if (!data || !data.FIELDS || !data.CHANGED_BY) {
-    return res.status(400).json({ error: 'Нет данных' });
+  if (!dealId) {
+    return res.status(400).json({ error: "Нет ID сделки" });
   }
 
-  const dealId = data.FIELDS.ID;
-  const stageFrom = data.FIELDS.STAGE_ID_OLD || null;
-  const stageTo = data.FIELDS.STAGE_ID || null;
-  const userId = data.CHANGED_BY.ID;
-  const userName = `${data.CHANGED_BY.NAME} ${data.CHANGED_BY.LAST_NAME}`;
-  const dateTime = data.FIELDS.TIMESTAMP_X || new Date().toISOString();
+  try {
+    // 👉 Дёргаем Bitrix24 API, чтобы получить детали сделки
+    const response = await axios.get(`${BITRIX_WEBHOOK}crm.deal.get`, {
+      params: { id: dealId }
+    });
 
-  let logs = fs.existsSync(logFile) ? JSON.parse(fs.readFileSync(logFile)) : {};
-  if (!logs[dealId]) logs[dealId] = [];
+    const deal = response.data.result;
+    if (!deal) {
+      return res.status(400).json({ error: "Сделка не найдена" });
+    }
 
-  logs[dealId].push({
-    stage_from: stageFrom,
-    stage_to: stageTo,
-    user_id: userId,
-    user_name: userName,
-    date_time: dateTime
-  });
+    const logEntry = {
+      deal_id: dealId,
+      stage: deal.STAGE_ID,
+      title: deal.TITLE,
+      modified_by: deal.ASSIGNED_BY_ID,
+      date: deal.DATE_MODIFY
+    };
 
-  fs.writeFileSync(logFile, JSON.stringify(logs, null, 2));
-  res.json({ status: 'ok' });
+    let logs = fs.existsSync(logFile)
+      ? JSON.parse(fs.readFileSync(logFile))
+      : {};
+    if (!logs[dealId]) logs[dealId] = [];
+    logs[dealId].push(logEntry);
+
+    fs.writeFileSync(logFile, JSON.stringify(logs, null, 2));
+    res.json({ status: "ok", logEntry });
+  } catch (err) {
+    console.error("Ошибка при запросе к Bitrix:", err.message);
+    res.status(500).json({ error: "Ошибка при запросе к Bitrix" });
+  }
 });
 
-// Ручка для HR
-app.get('/get_deal_log', (req, res) => {
-  const logs = fs.existsSync(logFile) ? JSON.parse(fs.readFileSync(logFile)) : {};
+app.get("/get_deal_log", (req, res) => {
+  const logs = fs.existsSync(logFile)
+    ? JSON.parse(fs.readFileSync(logFile))
+    : {};
   res.json(logs);
 });
 
